@@ -1,0 +1,12 @@
+[debug] Running TaskDef(DeviceSpec, org.scalatest.tools.Framework$$anon$1@7297139e, false, [SuiteSelector])
+[info] DeviceSpec:
+[info] Device actor
+[info] - must reply with empty reading if no temperature is known
+[info] - must reply with latest temperature reading
+[info] Run completed in 646 milliseconds.
+[info] Total number of tests run: 2
+[info] Suites: completed 1, aborted 0
+[info] Tests: succeeded 2, failed 0, canceled 0, ignored 0, pending 0
+[info] All tests passed.
+[debug] Passed tests:
+[debug] 	DeviceSpec

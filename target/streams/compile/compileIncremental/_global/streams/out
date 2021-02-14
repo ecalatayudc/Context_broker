@@ -1,0 +1,6 @@
+[debug] [zinc] IncrementalCompile -----------
+[debug] IncrementalCompile.incrementalCompile
+[debug] previous = Stamps for: 23 products, 5 sources, 4 libraries
+[debug] current source = Set(${BASE}/src/main/scala/zzz/akka/investigation/ExampleAkka.scala, ${BASE}/src/main/scala/zzz/akka/investigation/ContextProducer.scala, ${BASE}/src/main/scala/zzz/akka/investigation/ContextSupervisor.scala, ${BASE}/src/main/scala/zzz/akka/investigation/DeviceActor.scala, ${BASE}/src/main/scala/zzz/akka/investigation/MainAkka.scala)
+[debug] > initialChanges = InitialChanges(Changes(added = Set(), removed = Set(), changed = Set(), unmodified = ...),Set(),Set(),API Changes: Set())
+[debug] No changes
