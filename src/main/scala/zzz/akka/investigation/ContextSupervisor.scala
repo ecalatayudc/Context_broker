@@ -5,24 +5,42 @@ import akka.actor.typed.{ActorSystem, Behavior, PostStop, Signal, Terminated}
 import akka.actor.typed.scaladsl.AbstractBehavior
 import akka.actor.typed.scaladsl.ActorContext
 import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.{ ActorRef, Behavior }
+import akka.actor.typed.scaladsl.Behaviors
 
 object ContextSupervisor {
 
   final case class SayHello(name: String)
+  // Definition of the a build job and its possible status values
+  sealed trait Status
+  object Successful extends Status
+  object Failed extends Status
+  final case class Job(id: Long, projectName: String, status: String, duration: Long)
+  // Trait defining successful and failure responses
+  sealed trait Response
+  case object OK extends Response
+  final case class KO(reason: String) extends Response
 
-  def apply(): Behavior[SayHello] =
-    Behaviors.setup { context =>
-      //#create-actors
-      val contextProducer = context.spawn(ContextProducer(), "producer")
-      //#create-actors
+  // Trait and its implementations representing all possible messages that can be sent to this Behavior
+  sealed trait Command
+  final case class AddJob(job: Job, replyTo: ActorRef[Response]) extends Command
+  final case class GetJobById(id: Long, replyTo: ActorRef[Option[Job]]) extends Command
+  final case class ClearJobs(replyTo: ActorRef[Response]) extends Command
 
-      Behaviors.receiveMessage { message =>
-        //#create-actors
-        val replyTo = context.spawn(ContextConsumer(max = 3), message.name)
-        //#create-actors
-        contextProducer ! ContextProducer.Greet(message.name, replyTo)
-        Behaviors.same
-      }
-    }
+  // This behavior handles all possible incoming messages and keeps the state in the function parameter
+  def apply(jobs: Map[Long, Job] = Map.empty): Behavior[Command] = Behaviors.receiveMessage {
+    case AddJob(job, replyTo) if jobs.contains(job.id) =>
+      replyTo ! KO("Job already exists")
+      Behaviors.same
+    case AddJob(job, replyTo) =>
+      replyTo ! OK
+      ContextSupervisor(jobs.+(job.id -> job))
+    case GetJobById(id, replyTo) =>
+      replyTo ! jobs.get(id)
+      Behaviors.same
+    case ClearJobs(replyTo) =>
+      replyTo ! OK
+      ContextSupervisor(Map.empty)
+  }
 }
 

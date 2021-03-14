@@ -1,2 +1,8 @@
-[debug] downloaded https://repo1.maven.org/maven2/org/scala-sbt/compiler-bridge_2.13/1.4.4/compiler-bridge_2.13-1.4.4.pom
-[debug] downloaded https://repo1.maven.org/maven2/org/scala-sbt/compiler-bridge_2.13/1.4.4/compiler-bridge_2.13-1.4.4-sources.jar
+[debug] downloaded https://repo1.maven.org/maven2/com/typesafe/akka/akka-http-testkit_2.13/10.2.4/akka-http-testkit_2.13-10.2.4.pom
+[debug] downloaded https://repo1.maven.org/maven2/com/typesafe/akka/akka-stream-testkit_2.13/2.6.12/akka-stream-testkit_2.13-2.6.12.pom
+[debug] downloaded https://repo1.maven.org/maven2/com/typesafe/akka/akka-stream-testkit_2.13/2.6.12/akka-stream-testkit_2.13-2.6.12.jar
+[debug] downloaded https://repo1.maven.org/maven2/com/typesafe/akka/akka-http-testkit_2.13/10.2.4/akka-http-testkit_2.13-10.2.4.jar
+[debug] downloaded https://repo1.maven.org/maven2/com/typesafe/akka/akka-http-testkit_2.13/10.2.4/akka-http-testkit_2.13-10.2.4-sources.jar
+[debug] downloaded https://repo1.maven.org/maven2/com/typesafe/akka/akka-stream-testkit_2.13/2.6.12/akka-stream-testkit_2.13-2.6.12-sources.jar
+[debug] downloaded https://repo1.maven.org/maven2/com/typesafe/akka/akka-stream-testkit_2.13/2.6.12/akka-stream-testkit_2.13-2.6.12-javadoc.jar
+[debug] downloaded https://repo1.maven.org/maven2/com/typesafe/akka/akka-http-testkit_2.13/10.2.4/akka-http-testkit_2.13-10.2.4-javadoc.jar

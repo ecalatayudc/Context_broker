@@ -1,6 +1,6 @@
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import org.scalatest.wordspec.AnyWordSpecLike
-import zzz.akka.investigation.DeviceActor
+/*import zzz.akka.investigation.DeviceActor
 import zzz.akka.investigation.DeviceActor._
 
 class DeviceSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike {
@@ -40,4 +40,4 @@ class DeviceSpec extends ScalaTestWithActorTestKit with AnyWordSpecLike {
     }
   }
 
-}
+}*/
