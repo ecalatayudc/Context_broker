@@ -1,7 +1,7 @@
-package zzz.akka.investigation
+package zzz.akka.contextbroker
 
 import akka.actor.typed.ActorSystem
-import zzz.akka.investigation.ContextSupervisor.SayHello
+import zzz.akka.contextbroker.ContextSupervisor.SayHello
 
 object ContextServerApp extends App{
   val system: ActorSystem[ContextBroker.Message] =

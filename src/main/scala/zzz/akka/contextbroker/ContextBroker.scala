@@ -1,4 +1,4 @@
-package zzz.akka.investigation
+package zzz.akka.contextbroker
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorSystem, Behavior, PostStop}
 import akka.http.scaladsl.Http.ServerBinding

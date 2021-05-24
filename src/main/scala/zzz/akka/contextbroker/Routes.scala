@@ -1,4 +1,4 @@
-package zzz.akka.investigation
+package zzz.akka.contextbroker
 
 import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.util.Timeout

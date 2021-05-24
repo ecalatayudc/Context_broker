@@ -1,4 +1,4 @@
-package zzz.akka.investigation
+package zzz.akka.contextbroker
 
 import akka.NotUsed
 import akka.actor.typed.{ActorSystem, Behavior, PostStop, Signal, Terminated}

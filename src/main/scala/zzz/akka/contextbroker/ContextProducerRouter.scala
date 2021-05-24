@@ -1,4 +1,4 @@
-package zzz.akka.investigation
+package zzz.akka.contextbroker
 
 import akka.NotUsed
 import akka.actor.typed.scaladsl.{Behaviors, Routers}
@@ -12,29 +12,15 @@ import scala.util.{Failure, Success}
 import scala.concurrent.Future
 import akka.http.scaladsl.client.RequestBuilding.Post
 import javafx.concurrent.Worker
-import zzz.akka.investigation.ContextProducer.ValueRequestMsg
-import zzz.akka.investigation.ContextProducerPartition.{Command, DoLog}
+import zzz.akka.contextbroker.ContextProducerMain.ValueRequestMsg
+import zzz.akka.contextbroker.ContextProducerPartition.{Command, DoLog}
 
 
 
 object ContextProducerRouter {
 
-  //  def main(args: Array[String]): Unit = {
-  //    implicit val system = ActorSystem(Behaviors.empty, "SingleRequest")
-  //    // needed for the future flatMap/onComplete in the end
-  //    implicit val executionContext = system.executionContext
-  //    val json_response = """{ "id": 1, "projectName": "hola", "status": "Stats", "duration": 120}"""
-  //    val responseFuture: Future[HttpResponse] = Http().singleRequest(Post("http://127.0.0.1:8080/jobs", HttpEntity(ContentTypes.`application/json`,json_response)))
-  //
-  //    responseFuture
-  //      .onComplete {
-  //        case Success(res) => println(res)
-  //        case Failure(_)   => sys.error("something wrong")
-  //      }
-  //  }
-
-    def apply(): Behavior[ValueRequestMsg] = Behaviors.setup[ValueRequestMsg] { ctx =>
-      val pool = Routers.pool(poolSize = 4) {
+    def apply(np: Int, natt: Int): Behavior[ContextProducerMain.ValueRequestMsg] = Behaviors.setup[ContextProducerMain.ValueRequestMsg] { ctx =>
+      val pool = Routers.pool(poolSize = np) {
         // make sure the workers are restarted if they fail
         Behaviors.supervise(ContextProducerPartition()).onFailure[Exception](SupervisorStrategy.restart)
       }
@@ -44,12 +30,12 @@ object ContextProducerRouter {
       //        router ! ContextProducerPartition.DoLog(s"msg $n")
       //      }
       Behaviors.receiveMessage {
-        case ValueRequestMsg(text) =>
+        case ValueRequestMsg(text,from) =>
           //#create-actors
           val poolWithBroadcast = pool.withBroadcastPredicate(_.isInstanceOf[DoBroadcastLog])
           val routerWithBroadcast = ctx.spawn(poolWithBroadcast, "pool-with-broadcast")
           //this will be sent to all 4 routees
-          routerWithBroadcast ! DoBroadcastLog(text)
+          routerWithBroadcast ! DoBroadcastLog(text,from)
           Behaviors.empty
       }
     }

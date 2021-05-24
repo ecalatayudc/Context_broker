@@ -1,4 +1,4 @@
-package zzz.akka.investigation
+package zzz.akka.contextbroker
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import spray.json.DefaultJsonProtocol
 import spray.json.DeserializationException

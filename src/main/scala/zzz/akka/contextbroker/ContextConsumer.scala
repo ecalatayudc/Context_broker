@@ -1,11 +1,11 @@
-package zzz.akka.investigation
+package zzz.akka.contextbroker
 import akka.actor.typed.{ActorSystem, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.client.RequestBuilding.Get
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse}
 import akka.http.scaladsl.unmarshalling.Unmarshal
-import zzz.akka.investigation.ContextSupervisor.Job
+import zzz.akka.contextbroker.ContextSupervisor.Job
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
