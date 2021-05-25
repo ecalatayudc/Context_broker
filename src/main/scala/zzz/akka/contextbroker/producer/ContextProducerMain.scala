@@ -2,7 +2,6 @@ package zzz.akka.contextbroker.producer
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
-
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.client.RequestBuilding.Post
 import akka.http.scaladsl.model.StatusCodes.Success
@@ -11,6 +10,8 @@ import akka.actor.{Actor, ActorLogging}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.util.ByteString
+
+import scala.::
 import scala.concurrent.Future
 import scala.util.Failure
 
@@ -34,10 +35,8 @@ object ContextProducerMain {
 //  }
 //}
   sealed trait ValueAttribute
-
-  case class ValueRequestMsg(text: String, from: ActorRef[ValueResponseMsg]) extends ValueAttribute
-
-  case class ValueResponseMsg(text: String) extends ValueAttribute
+  case class ValueRequestMsg(text: String, from: List[ActorRef[ValueResponseMsg]]) extends ValueAttribute
+  case class ValueResponseMsg(text: String, from: ActorRef[ValueResponseMsg]) extends ValueAttribute
 
   def apply(npartitions: Int, nattributes: Int): Behavior[ValueResponseMsg] = {
     system(npartitions, nattributes)
@@ -47,11 +46,11 @@ object ContextProducerMain {
   private def system(np: Int, natt: Int): Behavior[ValueResponseMsg] = Behaviors.setup { ctx =>
     val routerWithBroadcast = ctx.spawn(ContextProducerRouter(np, natt), "pool-with-broadcast")
     //this will be sent to all 4 routees
-    routerWithBroadcast ! ValueRequestMsg("msg_broadcast_producer", ctx.self)
-    Behaviors.receiveMessage { message =>
-      val values = message.text + 1
-      ctx.log.info("Got message {}", message.text)
-      Behaviors.same
+    routerWithBroadcast ! ValueRequestMsg("msg_broadcast_producer", ctx.self::Nil)
+    Behaviors.receiveMessage {
+      case ValueResponseMsg(text,from) =>
+        ctx.log.info("Got message {}", text)
+        Behaviors.same
     }
   }
 }
