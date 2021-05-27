@@ -1,37 +1,59 @@
 package zzz.akka.contextbroker.producer
 
-import akka.actor.typed.scaladsl.{Behaviors, Routers}
-import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
-import zzz.akka.contextbroker.producer.ContextProducerMain.{ValueAttribute, ValueRequestMsg, ValueResponseMsg}
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
+import akka.actor.typed.{ActorRef, Behavior}
+import zzz.akka.contextbroker.producer.ContextProducerMain.{AggregatedQuotes, ValueAttribute, ValueRequestMsg, ValueResponseMsg}
+import scala.concurrent.duration.DurationInt
 
-import scala.::
-import scala.collection.immutable.Nil.:::
 
 object ContextProducerPartition {
 
-
-
-  def apply(natt: Int): Behavior[ValueAttribute] = Behaviors.setup { context =>
+  def apply(att: List[String],router: ActorRef[ValueAttribute]): Behavior[ValueAttribute] = Behaviors.setup { context =>
     context.log.info("Starting worker")
-    val pool = Routers.pool(poolSize = natt) {
-      // make sure the workers are restarted if they fail
-      Behaviors.supervise(ContextProducerAttribute()).onFailure[Exception](SupervisorStrategy.restart)
-    }
-    val poolAttribute = pool.withBroadcastPredicate(_.isInstanceOf[DoBroadcastLog])
-    val routerWithBroadcast = context.spawn(poolAttribute, "pool-with-broadcast")
+    val attributes = spawnAttributes(att,context)
+    receiveMsg(att.toString,context,attributes,router)
+  }
+
+  private def receiveMsg(msg: String, context: ActorContext[ValueAttribute],attributes: List[ActorRef[ValueAttribute]],router: ActorRef[ValueAttribute]): Behavior[ValueAttribute] =
     Behaviors.receiveMessage {
       case ValueRequestMsg(text, from) =>
         context.log.info("Got message {}", text)
-        //this will be sent to all 4 routees
-        routerWithBroadcast ! DoBroadcastLog(text, context.self::from)
+        spawnAggregator(context,attributes,from)
         Behaviors.same
-//        val attributeactor = context.spawn(ContextProducerAttribute(), "pool-with-broadcast")
-//        attributeactor ! ValueRequestMsg(text, from)
-//        Behaviors.same
-      case ValueResponseMsg(text,from) =>
-//        context.log.info("Got message {}", text)
-        from ! ValueResponseMsg(text,from)
+      case AggregatedQuotes(quotes,from) =>
+        context.log.info("{}",conMsg(quotes))
+        from ! ValueResponseMsg(conMsg(quotes),from)
         Behaviors.same
-    }
+      case _ => Behaviors.same
   }
+  private def spawnAttributes(att: List[String], ctx: ActorContext[ValueAttribute]):List[ActorRef[ValueAttribute]] = att.length match {
+    case _ if att.length > 0 =>
+      ctx.spawn(ContextProducerAttribute(att.head,ctx.self), s"${att.head}")::spawnAttributes(att.tail,ctx)
+    case _ => Nil
+  }
+
+  private def conMsg (x: List[ValueAttribute]):String = x match {
+    case s::rest => s match {
+      case ValueResponseMsg(text,_) =>
+        text + "," + conMsg(rest)
+    }
+    case _ => ""
+
+  }
+  private def spawnAggregator(context: ActorContext[ValueAttribute], attributes: List[ActorRef[ValueAttribute]],from: ActorRef[ValueResponseMsg])=
+    context.spawnAnonymous(
+    Aggregator[ValueAttribute, AggregatedQuotes](
+      sendRequests = { replyTo =>
+        attributes.foreach { n =>
+          n ! ValueRequestMsg("hi",replyTo)
+        }
+      },
+      expectedReplies = attributes.length,
+      context.self,
+      aggregateReplies = replies =>
+        AggregatedQuotes(
+          replies
+            .toList,from),
+      timeout = 5.seconds))
+
 }
