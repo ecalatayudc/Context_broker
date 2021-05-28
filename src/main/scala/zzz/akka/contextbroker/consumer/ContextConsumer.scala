@@ -19,7 +19,7 @@ object ContextConsumer extends Serializer {
     // needed for the future flatMap/onComplete in the end
     implicit val executionContext = system.executionContext
 
-    val responseFuture: Future[HttpResponse] = Http().singleRequest(Get("http://127.0.0.1:8080/jobs/1"))
+    val responseFuture: Future[HttpResponse] = Http().singleRequest(Get("http://127.0.0.1:5804/entities/0"))
 
     responseFuture
       .onComplete {

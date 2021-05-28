@@ -11,11 +11,8 @@ import scala.util.{Failure, Success}
 object ContextBroker {
 
   sealed trait Message
-
   private final case class StartFailed(cause: Throwable) extends Message
-
   private final case class Started(binding: ServerBinding) extends Message
-
   case object Stop extends Message
 
   def apply(host: String, port: Int): Behavior[Message] = Behaviors.setup { ctx =>

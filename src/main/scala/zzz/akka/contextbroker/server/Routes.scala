@@ -3,7 +3,7 @@ package zzz.akka.contextbroker.server
 import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{Directives, Route}
 import akka.util.Timeout
 
 import scala.concurrent.Future
@@ -17,8 +17,8 @@ class Routes (buildJobRepository: ActorRef[ContextSupervisor.Command])(implicit 
   // the ask is failed with a TimeoutException
   implicit val timeout: Timeout = 3.seconds
 
-  lazy val theJobRoutes: Route =
-    pathPrefix("jobs") {
+  lazy val theJobRoutes: Route = {
+    pathPrefix("entities") {
       concat(
         pathEnd {
           concat(
@@ -51,4 +51,6 @@ class Routes (buildJobRepository: ActorRef[ContextSupervisor.Command])(implicit 
         }
       )
     }
+
+  }
 }
