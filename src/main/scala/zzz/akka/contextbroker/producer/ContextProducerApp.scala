@@ -5,6 +5,8 @@ import akka.actor.typed.ActorSystem
 object ContextProducerApp extends App {
   //Lista de atributos
   val attributes = List("Temperature","Temperature2","Pressure1","Pressure2")
+  val entity = "Room1"
+  val entityType = "Room"
   val system: ActorSystem[ContextProducerMain.ValueResponseMsg] =
-    ActorSystem(ContextProducerMain(npartitions = 2 , att = attributes), "BuildJobsServer")
+    ActorSystem(ContextProducerMain(npartitions = 2 , att = attributes, ent = entity, entType = entityType), "BuildJobsServer")
 }

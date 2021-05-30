@@ -12,8 +12,8 @@ object ContextProducerAttribute {
   def apply(attName: String, partition: ActorRef[ValueAttribute]): Behavior[ValueAttribute] =
     Behaviors.receiveMessage {
       case ValueRequestMsg(_, from) =>
-        val num = new Random().between(0.0,21.0)
-        from ! ValueResponseMsg(attName + s": {val1: {$num}}",from)
+        val num = new Random().between(0.0,40.0)
+        from ! ValueResponseMsg(attName + s": {val: $num, type: ${num.getClass}, metadata: {}}",from)
         Behaviors.same
     }
 }
