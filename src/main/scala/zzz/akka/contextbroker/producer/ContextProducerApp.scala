@@ -4,7 +4,7 @@ import akka.actor.typed.ActorSystem
 //actor que ejecuta la aplicacion del productor
 object ContextProducerApp extends App {
   //Lista de atributos
-  val attributes = List("Temperature","Temperature2","Pressure1","Pressure2")
+  val attributes = List("temperature1","temperature2","pressure1","pressure2")
   val entity = "Room1"
   val entityType = "Room"
   val system: ActorSystem[ContextProducerMain.ValueResponseMsg] =

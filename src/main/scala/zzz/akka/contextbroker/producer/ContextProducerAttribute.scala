@@ -13,7 +13,7 @@ object ContextProducerAttribute {
     Behaviors.receiveMessage {
       case ValueRequestMsg(_, from) =>
         val num = new Random().between(0.0,40.0)
-        from ! ValueResponseMsg(attName + s": {val: $num, type: ${num.getClass}, metadata: {}}",from)
+        from ! ValueResponseMsg(" " + attName + s":{val:$num,type:${num.getClass},metadata:{}}",from)
         Behaviors.same
     }
 }
