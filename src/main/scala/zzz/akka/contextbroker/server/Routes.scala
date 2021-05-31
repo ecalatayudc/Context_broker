@@ -44,7 +44,7 @@ class Routes (buildJobRepository: ActorRef[ContextSupervisor.Command])(implicit 
         },
         (get & path(Remaining)) { id =>
           println(id)
-          val maybeJob: Future[Option[ContextSupervisor.ContextMsg]] =
+          val maybeJob: Future[Either[Option[ContextSupervisor.ContextMsg],String]] =
             buildJobRepository.ask(ContextSupervisor.GetEntityById(id, _))
           rejectEmptyResponse {
             complete(maybeJob)

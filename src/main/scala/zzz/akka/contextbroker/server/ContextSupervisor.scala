@@ -7,8 +7,10 @@ import scala.util.matching.Regex
 
 object ContextSupervisor {
   // expresion regular
-  val patternSlash = "[a-zA-Z0-9]/".r
   val patternAttrs = "[a-zA-Z0-9]/attrs/[a-zA-Z0-9]".r
+  val patternSlash = "[a-zA-Z0-9]/".r
+
+
 
   final case class SayHello(name: String)
   // Definition of the a build job and its possible status values
@@ -25,7 +27,7 @@ object ContextSupervisor {
   // Trait and its implementations representing all possible messages that can be sent to this Behavior
   sealed trait Command
   final case class AddEntity(job: ContextMsg, replyTo: ActorRef[Response]) extends Command
-  final case class GetEntityById(id: String, replyTo: ActorRef[Option[ContextMsg]]) extends Command
+  final case class GetEntityById(id: String, replyTo: ActorRef[Either[Option[ContextMsg],String]]) extends Command
   final case class ClearEntity(replyTo: ActorRef[Response]) extends Command
 
   // This behavior handles all possible incoming messages and keeps the state in the function parameter
@@ -36,23 +38,25 @@ object ContextSupervisor {
     case AddEntity(entity, replyTo) =>
       replyTo ! OK
       ContextSupervisor(entities.+(entity.id -> entity))
-    case GetEntityById(id, replyTo) => patternAttrs.findFirstMatchIn(id) match {
-      case Some(_) =>
-        val attr = id.split("/").toList.last
-        val idPath = id.split("/").toList.head
-        val listAttr = entities.get(idPath).head.attrs.split(" ").toList
-        val valAttr = findAttr(attr,listAttr)
-        println(valAttr)
-        replyTo ! entities.get(idPath)
-        Behaviors.same
-      case None => patternSlash.findFirstMatchIn(id) match {
-        case Some(_) =>
-          replyTo ! entities.get(id.reverse.drop(1).reverse)
-          Behaviors.same
-        case None =>
-          replyTo ! entities.get(id)
-          Behaviors.same
-      }
+    case GetEntityById(id, replyTo) =>
+       patternAttrs.findFirstMatchIn(id) match {
+          case Some(_) =>
+            println("y")
+            val attr = id.split("/").toList.last
+            val idPath = id.split("/").toList.head
+            val listAttr = entities.get(idPath).head.attrs.split(" ").toList
+            val valAttr = findAttr(attr,listAttr)
+            println(valAttr)
+            replyTo ! Right(valAttr)
+            Behaviors.same
+          case None => patternSlash.findFirstMatchIn(id) match {
+            case Some(_) =>
+              replyTo ! Left(entities.get(id.reverse.drop(1).reverse))
+              Behaviors.same
+            case None =>
+              replyTo ! Left(entities.get(id))
+              Behaviors.same
+          }
 
     }
     case ClearEntity(replyTo) =>
@@ -63,7 +67,11 @@ private def findAttr (attr: String, list: List[String]):String = list match {
   case x::xs =>
     val valAttr = x.split(":",2).toList
     if (valAttr(0) == attr) {
-      valAttr(1)
+      if (valAttr(1).last == ','){
+        valAttr(1).reverse.drop(1).reverse
+      }else{
+        valAttr(1)
+      }
     }else
       findAttr(attr,xs)
   case _ => ""
