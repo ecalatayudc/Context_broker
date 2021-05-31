@@ -44,11 +44,13 @@ object ContextProducerMain {
         import scala.util.{Failure, Success}
         import scala.concurrent.Future
         import akka.http.scaladsl.client.RequestBuilding.Post
+        import akka.http.scaladsl.client.RequestBuilding.Put
         implicit val system = ActorSystem(Behaviors.empty, "SingleRequest")
         // needed for the future flatMap/onComplete in the end
         implicit val executionContext = system.executionContext
         val json_response = s"""{ "id": "$ent", "entityType": "$entType", "attrs": "$value"}"""
-        val responseFuture: Future[HttpResponse] = Http().singleRequest(Post("http://127.0.0.1:5804/entities", HttpEntity(ContentTypes.`application/json`, json_response)))
+//        val responseFuture: Future[HttpResponse] = Http().singleRequest(Post("http://127.0.0.1:5804/entities", HttpEntity(ContentTypes.`application/json`, json_response)))
+        val responseFuture: Future[HttpResponse] = Http().singleRequest(Put("http://127.0.0.1:5804/entities", HttpEntity(ContentTypes.`application/json`, json_response)))
 
         responseFuture
           .onComplete {

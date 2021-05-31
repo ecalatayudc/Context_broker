@@ -9,7 +9,7 @@ import akka.util.Timeout
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class Routes (buildJobRepository: ActorRef[ContextSupervisor.Command])(implicit system: ActorSystem[_]) extends Serializer {
+class Routes(buildEntitiesRepository: ActorRef[ContextSupervisor.Command])(implicit system: ActorSystem[_]) extends Serializer {
 
   import akka.actor.typed.scaladsl.AskPattern.{Askable, schedulerFromActorSystem}
 
@@ -17,26 +17,36 @@ class Routes (buildJobRepository: ActorRef[ContextSupervisor.Command])(implicit 
   // the ask is failed with a TimeoutException
   implicit val timeout: Timeout = 3.seconds
   //val pathAndPathSingleSlash = path(Segment) & pathSingleSlash
-  lazy val theJobRoutes: Route = {
+  lazy val theEntityRoutes: Route = {
     pathPrefix("entities") {
       concat(
         pathEnd {
           concat(
             post {
-              entity(as[ContextSupervisor.ContextMsg]) { job =>
+              entity(as[ContextSupervisor.ContextMsg]) { entity =>
                 val operationPerformed: Future[ContextSupervisor.Response] =
-                  buildJobRepository.ask(ContextSupervisor.AddEntity(job, _))
+                  buildEntitiesRepository.ask(ContextSupervisor.AddEntity(entity, _))
                 onSuccess(operationPerformed) {
-                  case ContextSupervisor.OK         => complete("Job added")
+                  case ContextSupervisor.OK         => complete("Entity added")
+                  case ContextSupervisor.KO(reason) => complete(StatusCodes.InternalServerError -> reason)
+                }
+              }
+            },
+            put {
+              entity(as[ContextSupervisor.ContextMsg]) { entity =>
+                val operationPerformed: Future[ContextSupervisor.Response] =
+                  buildEntitiesRepository.ask(ContextSupervisor.UpdateEntity(entity, _))
+                onSuccess(operationPerformed) {
+                  case ContextSupervisor.OK         => complete("Entity updated")
                   case ContextSupervisor.KO(reason) => complete(StatusCodes.InternalServerError -> reason)
                 }
               }
             },
             delete {
               val operationPerformed: Future[ContextSupervisor.Response] =
-                buildJobRepository.ask(ContextSupervisor.ClearEntity(_))
+                buildEntitiesRepository.ask(ContextSupervisor.ClearEntity(_))
               onSuccess(operationPerformed) {
-                case ContextSupervisor.OK         => complete("Jobs cleared")
+                case ContextSupervisor.OK         => complete("Entities cleared")
                 case ContextSupervisor.KO(reason) => complete(StatusCodes.InternalServerError -> reason)
               }
             }
@@ -44,10 +54,10 @@ class Routes (buildJobRepository: ActorRef[ContextSupervisor.Command])(implicit 
         },
         (get & path(Remaining)) { id =>
           println(id)
-          val maybeJob: Future[Either[Option[ContextSupervisor.ContextMsg],String]] =
-            buildJobRepository.ask(ContextSupervisor.GetEntityById(id, _))
+          val maybeEntity: Future[Either[Option[ContextSupervisor.ContextMsg],String]] =
+            buildEntitiesRepository.ask(ContextSupervisor.GetEntityById(id, _))
           rejectEmptyResponse {
-            complete(maybeJob)
+            complete(maybeEntity)
           }
         }
       )

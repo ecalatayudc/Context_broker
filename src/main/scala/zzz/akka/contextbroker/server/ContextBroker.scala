@@ -19,11 +19,11 @@ object ContextBroker {
 
     implicit val system = ctx.system
 
-    val buildJobRepository = ctx.spawn(ContextSupervisor(), "JobRepository")
-    val routes = new Routes(buildJobRepository)
+    val buildEntityRepository = ctx.spawn(ContextSupervisor(), "EntityRepository")
+    val routes = new Routes(buildEntityRepository)
 
     val serverBinding: Future[Http.ServerBinding] =
-      Http().newServerAt(host, port).bind(routes.theJobRoutes)
+      Http().newServerAt(host, port).bind(routes.theEntityRoutes)
     ctx.pipeToSelf(serverBinding) {
       case Success(binding) => Started(binding)
       case Failure(ex) => StartFailed(ex)

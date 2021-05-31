@@ -13,7 +13,7 @@ object ContextSupervisor {
 
 
   final case class SayHello(name: String)
-  // Definition of the a build job and its possible status values
+  // Definition of the a build entity and its possible status values
   sealed trait Status
   object Successful extends Status
   object Failed extends Status
@@ -26,22 +26,29 @@ object ContextSupervisor {
 
   // Trait and its implementations representing all possible messages that can be sent to this Behavior
   sealed trait Command
-  final case class AddEntity(job: ContextMsg, replyTo: ActorRef[Response]) extends Command
+  final case class AddEntity(entity: ContextMsg, replyTo: ActorRef[Response]) extends Command
+  final case class UpdateEntity(entity: ContextMsg, replyTo: ActorRef[Response]) extends Command
   final case class GetEntityById(id: String, replyTo: ActorRef[Either[Option[ContextMsg],String]]) extends Command
   final case class ClearEntity(replyTo: ActorRef[Response]) extends Command
+
 
   // This behavior handles all possible incoming messages and keeps the state in the function parameter
   def apply(entities: Map[String, ContextMsg] = Map.empty): Behavior[Command] = Behaviors.receiveMessage {
     case AddEntity(entity, replyTo) if entities.contains(entity.id) =>
-      replyTo ! KO("Job already exists")
+      replyTo ! KO("Entity already exists")
       Behaviors.same
+    case UpdateEntity(entity, replyTo) if !entities.contains(entity.id) =>
+      replyTo ! KO("Entity doesn't exist")
+      Behaviors.same
+    case UpdateEntity(entity, replyTo) if entities.contains(entity.id) =>
+      replyTo ! OK
+      ContextSupervisor(entities.updated(entity.id,entity))
     case AddEntity(entity, replyTo) =>
       replyTo ! OK
       ContextSupervisor(entities.+(entity.id -> entity))
     case GetEntityById(id, replyTo) =>
        patternAttrs.findFirstMatchIn(id) match {
           case Some(_) =>
-            println("y")
             val attr = id.split("/").toList.last
             val idPath = id.split("/").toList.head
             val listAttr = entities.get(idPath).head.attrs.split(" ").toList
