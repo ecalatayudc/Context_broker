@@ -24,7 +24,7 @@ object ContextProducerMain {
   // metodo que envia las peticiones y recibe las respuestas
   private def system(np: Int, att: List[String],ent: String,entType: String): Behavior[ValueAttribute] = Behaviors.setup { ctx =>
     //actor que actua como ruter
-    val router = ctx.spawn(ContextProducerRouter(np, att,ctx.self), "pool-with-broadcast")
+    val router = ctx.spawn(ContextProducerRouter(np, att,ctx.self), "producer-router")
     router ! ValueRequestMsg("msg_broadcast_producer", ctx.self)
 
     Behaviors.receiveMessage {
@@ -49,8 +49,8 @@ object ContextProducerMain {
         // needed for the future flatMap/onComplete in the end
         implicit val executionContext = system.executionContext
         val json_response = s"""{ "id": "$ent", "entityType": "$entType", "attrs": "$value"}"""
-//        val responseFuture: Future[HttpResponse] = Http().singleRequest(Post("http://127.0.0.1:5804/entities", HttpEntity(ContentTypes.`application/json`, json_response)))
-        val responseFuture: Future[HttpResponse] = Http().singleRequest(Put("http://127.0.0.1:5804/entities", HttpEntity(ContentTypes.`application/json`, json_response)))
+        val responseFuture: Future[HttpResponse] = Http().singleRequest(Post("http://127.0.0.1:5804/entities", HttpEntity(ContentTypes.`application/json`, json_response)))
+//        val responseFuture: Future[HttpResponse] = Http().singleRequest(Put("http://127.0.0.1:5804/entities", HttpEntity(ContentTypes.`application/json`, json_response)))
 
         responseFuture
           .onComplete {
