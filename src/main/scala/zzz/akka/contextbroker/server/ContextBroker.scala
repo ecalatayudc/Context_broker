@@ -15,11 +15,11 @@ object ContextBroker {
   private final case class Started(binding: ServerBinding) extends Message
   case object Stop extends Message
 
-  def apply(host: String, port: Int): Behavior[Message] = Behaviors.setup { ctx =>
+  def apply(host: String, port: Int,nPart:Int): Behavior[Message] = Behaviors.setup { ctx =>
 
     implicit val system = ctx.system
 
-    val buildEntityRepository = ctx.spawn(ContextSupervisor(), "EntityRepository")
+    val buildEntityRepository = ctx.spawn(ContextSupervisor(nPart), "EntityRepository")
     val routes = new Routes(buildEntityRepository)
 
     val serverBinding: Future[Http.ServerBinding] =

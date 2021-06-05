@@ -3,6 +3,8 @@ package zzz.akka.contextbroker.server
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 
+import scala.util.Random
+
 
 object ContextSupervisor {
   // expresion regular
@@ -10,7 +12,7 @@ object ContextSupervisor {
   val patternSlash = "[a-zA-Z0-9]/".r
 
 
-  final case class StreamMsg (values: List[List[Serializable]])
+  final case class StreamMsg (values: List[List[String]])
   final case class SayHello(name: String)
   // Definition of the a build entity and its possible status values
   sealed trait Status
@@ -32,24 +34,28 @@ object ContextSupervisor {
 
 
   // This behavior handles all possible incoming messages and keeps the state in the function parameter
-  def apply(entities: Map[String, ContextMsg] = Map.empty): Behavior[Command] = Behaviors.setup{ctx =>
-    val streamAnalysis = ctx.spawn(ContextStreamAnalysis(),s"context-analysis-${entities.size}")
+  def apply(nPart: Int,entities: Map[String, ContextMsg] = Map.empty, entitiesRef: Map[String, ActorRef[StreamMsg]] = Map.empty): Behavior[Command] = Behaviors.setup{ctx =>
+    val num = new Random().between(0.0,100.0)
     Behaviors.receiveMessage {
       case AddEntity(entity, replyTo) if entities.contains(entity.id) =>
         replyTo ! KO("Entity already exists")
         Behaviors.same
       case AddEntity(entity, replyTo) =>
         //      separacion de los atributos en una lista
-        val mapValues = mapTuple(entity)
-        streamAnalysis ! StreamMsg(mapValues)
+        val mapValues = listTuple(entity)
+        val streamEntity = ctx.spawn(ContextBrokerEntity(mapValues.map(_(0)),nPart),s"context-analysis-${num}")
+        streamEntity ! StreamMsg(mapValues)
         replyTo ! OK
-        ContextSupervisor(entities.+(entity.id -> entity))
+        ContextSupervisor(nPart,entities.+(entity.id -> entity),entitiesRef.+(entity.id->streamEntity))
       case UpdateEntity(entity, replyTo) if !entities.contains(entity.id) =>
         replyTo ! KO("Entity doesn't exist")
         Behaviors.same
       case UpdateEntity(entity, replyTo) if entities.contains(entity.id) =>
         replyTo ! OK
-        ContextSupervisor(entities.updated(entity.id,entity))
+        val mapValues = listTuple(entity)
+        val ref = entitiesRef.get(entity.id).head
+        ref ! StreamMsg(mapValues)
+        ContextSupervisor(nPart,entities.updated(entity.id,entity),entitiesRef)
       case GetEntityById(id, replyTo) =>
         patternAttrs.findFirstMatchIn(id) match {
           case Some(_) =>
@@ -71,7 +77,7 @@ object ContextSupervisor {
         }
       case ClearEntity(replyTo) =>
         replyTo ! OK
-        ContextSupervisor(Map.empty)
+        ContextSupervisor(nPart,Map.empty,Map.empty)
     }
   }
 
@@ -88,19 +94,17 @@ private def findAttr (attr: String, list: List[String]):String = list match {
       findAttr(attr,xs)
   case _ => ""
 }
-  private def mapTuple(entity:ContextMsg): List[List[Serializable]] =
+  // metodo que coge los valores del mensaje ContextMsg y lo convierte en una lista
+  private def listTuple(entity:ContextMsg):List[List[String]] =
     entity.attrs.split(" ").toList.drop(1)
       //Eliminación de la última coma de los valores
       .map(x => if (x.last == ',') x.reverse.drop(1).reverse else x)
       //Separar los atributos en diferentes listas
       .map(_.split(":", 2).toList)
-      .map(x => List(x(0), x(1).drop(1).reverse.drop(1).reverse.split(",").toList))
-      .map(x => List(x(0), x(1) match {
-        case List(a, b, c) => (a, b, c)
-      }))
-
-//      .map(x=>Map(x(0)->x(1)))
-
-    //              Conversion a un Map
-
+      //Eliminar las {} de los valores de los atributos y convertirlo en una lista de valores de atributo
+      .map(x => x(0)::x(1).drop(1).reverse.drop(1).reverse.split(",").toList)
+      //convertir la lista de valores del atributo en una tupla (attr,val, type, metadata)
+//      .map(_ match {
+//        case List(a,List(b, c, d)) => (a, b, c, d)
+//      })
 }
