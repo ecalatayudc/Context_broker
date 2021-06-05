@@ -38,7 +38,7 @@ object ContextBrokerEntity {
   private def spawnAttributes(listAtt:List[String], ctx: ActorContext[StreamMsg], nPart: Int, attributes: Map[String, ActorRef[partitionMsg]]):Map[String,ActorRef[partitionMsg]] = listAtt.length match {
     case _ if listAtt.length > 0 =>
       val next = listAtt.drop(1)
-      val refAtt = ctx.spawn(ContextBrokerAttribute(listAtt(0),nPart,0), s"${listAtt.length}")
+      val refAtt = ctx.spawn(ContextBrokerAttribute(listAtt(0),nPart,0,0), s"${listAtt.length}")
       val map = attributes.+(listAtt(0)->refAtt)
       spawnAttributes(next,ctx,nPart,map)
     case _ => attributes
