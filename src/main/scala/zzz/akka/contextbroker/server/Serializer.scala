@@ -22,5 +22,6 @@ trait Serializer extends SprayJsonSupport {
     }
   }
 
-  implicit val jobFormat = jsonFormat3(ContextMsg)
+  implicit val jobFormat2 = jsonFormat3(ContextMsg)
+  implicit val jobFormat = jsonFormat6(ContextSubscription)
 }

@@ -18,7 +18,10 @@ object ContextSupervisor {
   sealed trait Status
   object Successful extends Status
   object Failed extends Status
-  final case class ContextMsg(id: String, entityType: String, attrs: String)
+  // mensajes Json
+  trait JsonMsg
+  final case class ContextMsg(id: String, entityType: String, attrs: String) extends JsonMsg
+  final case class ContextSubscription(id: String, description: String,subject:String, notification: String, expires: String, throttling: String) extends JsonMsg
 
   // Trait defining successful and failure responses
   sealed trait Response
@@ -31,10 +34,11 @@ object ContextSupervisor {
   final case class UpdateEntity(entity: ContextMsg, replyTo: ActorRef[Response]) extends Command
   final case class GetEntityById(id: String, replyTo: ActorRef[Either[Option[ContextMsg],String]]) extends Command
   final case class ClearEntity(replyTo: ActorRef[Response]) extends Command
-
+  final case class AddSubscription(subscription: ContextSubscription, replyTo: ActorRef[Response]) extends Command
+  final case class UpdateSubscription(subscription: ContextSubscription, replyTo: ActorRef[Response]) extends Command
 
   // This behavior handles all possible incoming messages and keeps the state in the function parameter
-  def apply(nPart: Int,entities: Map[String, ContextMsg] = Map.empty, entitiesRef: Map[String, ActorRef[StreamMsg]] = Map.empty): Behavior[Command] = Behaviors.setup{ctx =>
+  def apply(nPart: Int,entities: Map[String, ContextMsg] = Map.empty, entitiesRef: Map[String, ActorRef[StreamMsg]] = Map.empty, subscriptions: Map[String, ContextSubscription] = Map.empty): Behavior[Command] = Behaviors.setup{ctx =>
     val num = new Random().between(0.0,100.0)
     Behaviors.receiveMessage {
       case AddEntity(entity, replyTo) if entities.contains(entity.id) =>
@@ -46,7 +50,7 @@ object ContextSupervisor {
         val streamEntity = ctx.spawn(ContextBrokerEntity(mapValues.map(_(0)),nPart),s"context-analysis-${num}")
         streamEntity ! StreamMsg(mapValues)
         replyTo ! OK
-        ContextSupervisor(nPart,entities.+(entity.id -> entity),entitiesRef.+(entity.id->streamEntity))
+        ContextSupervisor(nPart,entities.+(entity.id -> entity),entitiesRef.+(entity.id->streamEntity),subscriptions)
       case UpdateEntity(entity, replyTo) if !entities.contains(entity.id) =>
         replyTo ! KO("Entity doesn't exist")
         Behaviors.same
@@ -55,7 +59,7 @@ object ContextSupervisor {
         val mapValues = listTuple(entity)
         val ref = entitiesRef.get(entity.id).head
         ref ! StreamMsg(mapValues)
-        ContextSupervisor(nPart,entities.updated(entity.id,entity),entitiesRef)
+        ContextSupervisor(nPart,entities.updated(entity.id,entity),entitiesRef,subscriptions)
       case GetEntityById(id, replyTo) =>
         patternAttrs.findFirstMatchIn(id) match {
           case Some(_) =>
@@ -78,6 +82,20 @@ object ContextSupervisor {
       case ClearEntity(replyTo) =>
         replyTo ! OK
         ContextSupervisor(nPart,Map.empty,Map.empty)
+      case AddSubscription(subscription, replyTo) if subscriptions.contains(subscription.id) =>
+        replyTo ! KO("Entity already exists")
+        Behaviors.same
+      case AddSubscription(subscription, replyTo) =>
+        replyTo ! OK
+        println(subscriptions)
+        ContextSupervisor(nPart,entities,entitiesRef,subscriptions.+(subscription.id->subscription))
+      case UpdateSubscription(subscription, replyTo) if !subscriptions.contains(subscription.id) =>
+        replyTo ! KO("Entity doesn't exist")
+        Behaviors.same
+      case UpdateSubscription(subscription, replyTo) if subscriptions.contains(subscription.id) =>
+        replyTo ! OK
+        println(subscriptions)
+        ContextSupervisor(nPart,entities,entitiesRef,subscriptions.updated(subscription.id,subscription))
     }
   }
 
