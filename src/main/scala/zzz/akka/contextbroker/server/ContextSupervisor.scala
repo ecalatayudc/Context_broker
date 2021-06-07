@@ -11,7 +11,6 @@ object ContextSupervisor {
   val patternAttrs = "[a-zA-Z0-9]/attrs/[a-zA-Z0-9]".r
   val patternSlash = "[a-zA-Z0-9]/".r
 
-
   final case class StreamMsg (values: List[List[String]])
   final case class SayHello(name: String)
   // Definition of the a build entity and its possible status values
@@ -87,14 +86,16 @@ object ContextSupervisor {
         Behaviors.same
       case AddSubscription(subscription, replyTo) =>
         replyTo ! OK
-        println(subscriptions)
+        val info = getInfoSub(subscription)
+        println(info)
         ContextSupervisor(nPart,entities,entitiesRef,subscriptions.+(subscription.id->subscription))
       case UpdateSubscription(subscription, replyTo) if !subscriptions.contains(subscription.id) =>
         replyTo ! KO("Entity doesn't exist")
         Behaviors.same
       case UpdateSubscription(subscription, replyTo) if subscriptions.contains(subscription.id) =>
         replyTo ! OK
-        println(subscriptions)
+        val info = getInfoSub(subscription)
+        println(info)
         ContextSupervisor(nPart,entities,entitiesRef,subscriptions.updated(subscription.id,subscription))
     }
   }
@@ -125,4 +126,36 @@ private def findAttr (attr: String, list: List[String]):String = list match {
 //      .map(_ match {
 //        case List(a,List(b, c, d)) => (a, b, c, d)
 //      })
+  private def getInfoSub(subscription: ContextSubscription) = {
+    val idPattern = "id:[a-zA-Z0-9]*".r
+    val attrsPattern = """attrs:\[[a-zA-Z0-9]*[,[a-zA-Z0-9]*]*\]""".r
+    val urlPattern = "url:[a-zA-Z]*://[a-zA-Z]*:[0-9]*[/[a-zA-Z]*]*".r
+    val id = idPattern.findFirstIn(subscription.subject) match {
+      case Some(_) =>
+        idPattern.findFirstIn(subscription.subject).head.split(":").toList.drop(1)(0)
+//        println(idPattern.findFirstIn(subscription.subject))
+      case None => println("id not found")
+    }
+    val conAttrs = attrsPattern.findFirstIn(subscription.subject) match {
+      case Some(_) =>
+        attrsPattern.findFirstIn(subscription.subject).head.split(":").toList.drop(1)
+          .map(_.drop(1).reverse.drop(1).reverse.split(",").toList)(0)
+//        println(attrsPattern.findFirstIn(subscription.subject))
+      case None => println("attrs not found in subject")
+    }
+    val url = urlPattern.findFirstMatchIn(subscription.notification) match {
+      case Some(_) =>
+        urlPattern.findFirstIn(subscription.notification).head.split(":",2).toList.drop(1)(0)
+//        println(urlPattern.findFirstIn(subscription.notification))
+      case None => println("url not found")
+    }
+    val targetAttrs = attrsPattern.findFirstIn(subscription.notification) match {
+      case Some(_) =>
+        attrsPattern.findFirstIn(subscription.notification).head.split(":").toList.drop(1)
+          .map(_.drop(1).reverse.drop(1).reverse.split(",").toList)(0)
+//        println(attrsPattern.findFirstIn(subscription.notification))
+      case None => println("attrs not found in notifications")
+    }
+    id::conAttrs::url::targetAttrs::Nil
+  }
 }
