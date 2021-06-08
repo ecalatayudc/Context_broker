@@ -48,11 +48,11 @@ object ContextConsumer extends Serializer {
           Http()
               .singleRequest(Get(s"http://127.0.0.1:5804/subscriptions/events/$idGroup"))
               .flatMap(Unmarshal(_).to[Source[ServerSentEvent, NotUsed]])
-              .foreach(_.runForeach(println))
+              .foreach(_.runForeach(getMsg(_)))
         case Failure(_) => sys.error("something wrong")
       }
   }
-  private def getMsg(s: ServerSentEvent ):Unit = {
+  private def getMsg(s: ServerSentEvent):Unit = {
     implicit val system= ActorSystem()
       implicit val mat    = ActorMaterializer
       implicit val dispatcher = system.dispatcher
@@ -61,7 +61,9 @@ object ContextConsumer extends Serializer {
     responseFuture
       .onComplete {
         case Success(res) => Unmarshal(res).to[ContextMsg].onComplete {
-          case Success(json) => println(json)
+          case Success(json) =>
+            println(s)
+            println(json)
           case Failure(_) => sys.error("something wrong")
         }
         case Failure(_) => sys.error("something wrong")
