@@ -1,5 +1,6 @@
 package zzz.akka.contextbroker.server
 
+import akka.actor.TypedActor.context
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
 
@@ -11,8 +12,11 @@ object ContextSupervisor {
   val patternAttrs = "[a-zA-Z0-9]/attrs/[a-zA-Z0-9]".r
   val patternSlash = "[a-zA-Z0-9]/".r
 
-  final case class StreamMsg (values: List[List[String]])
+
   final case class SayHello(name: String)
+  trait Info
+  final case class StreamMsg (values: List[List[String]]) extends Info
+  final case class InfoSubscriptionMsg (idConsumer: String, attCon: Any, url: Any, attTarget: Any, expires: String, throttling: String) extends Info
   // Definition of the a build entity and its possible status values
   sealed trait Status
   object Successful extends Status
@@ -20,7 +24,7 @@ object ContextSupervisor {
   // mensajes Json
   trait JsonMsg
   final case class ContextMsg(id: String, entityType: String, attrs: String) extends JsonMsg
-  final case class ContextSubscription(id: String, description: String,subject:String, notification: String, expires: String, throttling: String) extends JsonMsg
+  final case class ContextSubscription(idGroup:String,idConsumer: String, description: String,subject:String, notification: String, expires: String, throttling: String) extends JsonMsg
 
   // Trait defining successful and failure responses
   sealed trait Response
@@ -35,21 +39,28 @@ object ContextSupervisor {
   final case class ClearEntity(replyTo: ActorRef[Response]) extends Command
   final case class AddSubscription(subscription: ContextSubscription, replyTo: ActorRef[Response]) extends Command
   final case class UpdateSubscription(subscription: ContextSubscription, replyTo: ActorRef[Response]) extends Command
-
+  final case class CheckNewValues(replyTo: ActorRef[Boolean]) extends Command
   // This behavior handles all possible incoming messages and keeps the state in the function parameter
-  def apply(nPart: Int,entities: Map[String, ContextMsg] = Map.empty, entitiesRef: Map[String, ActorRef[StreamMsg]] = Map.empty, subscriptions: Map[String, ContextSubscription] = Map.empty): Behavior[Command] = Behaviors.setup{ctx =>
+  def apply(nPart: Int,entities: Map[String, ContextMsg] = Map.empty, entitiesRef: Map[Any, ActorRef[Info]] = Map.empty, subscriptions: Map[String, ContextSubscription] = Map.empty,newValue:Boolean = false): Behavior[Command] = Behaviors.setup{ctx =>
     val num = new Random().between(0.0,100.0)
     Behaviors.receiveMessage {
+      case CheckNewValues(replyTo) =>
+        if (newValue){
+          replyTo ! true
+        }else{
+          replyTo ! false
+        }
+        ContextSupervisor(nPart,entities,entitiesRef,subscriptions,false)
       case AddEntity(entity, replyTo) if entities.contains(entity.id) =>
         replyTo ! KO("Entity already exists")
         Behaviors.same
       case AddEntity(entity, replyTo) =>
         //      separacion de los atributos en una lista
         val mapValues = listTuple(entity)
-        val streamEntity = ctx.spawn(ContextBrokerEntity(mapValues.map(_(0)),nPart),s"context-analysis-${num}")
+        val streamEntity = ctx.spawn(ContextBrokerEntity(mapValues.map(_(0)),nPart,entity.id),s"context-analysis-${num}")
         streamEntity ! StreamMsg(mapValues)
         replyTo ! OK
-        ContextSupervisor(nPart,entities.+(entity.id -> entity),entitiesRef.+(entity.id->streamEntity),subscriptions)
+        ContextSupervisor(nPart,entities.+(entity.id -> entity),entitiesRef.+(entity.id->streamEntity),subscriptions,true)
       case UpdateEntity(entity, replyTo) if !entities.contains(entity.id) =>
         replyTo ! KO("Entity doesn't exist")
         Behaviors.same
@@ -58,7 +69,7 @@ object ContextSupervisor {
         val mapValues = listTuple(entity)
         val ref = entitiesRef.get(entity.id).head
         ref ! StreamMsg(mapValues)
-        ContextSupervisor(nPart,entities.updated(entity.id,entity),entitiesRef,subscriptions)
+        ContextSupervisor(nPart,entities.updated(entity.id,entity),entitiesRef,subscriptions,true)
       case GetEntityById(id, replyTo) =>
         patternAttrs.findFirstMatchIn(id) match {
           case Some(_) =>
@@ -80,23 +91,39 @@ object ContextSupervisor {
         }
       case ClearEntity(replyTo) =>
         replyTo ! OK
-        ContextSupervisor(nPart,Map.empty,Map.empty)
-      case AddSubscription(subscription, replyTo) if subscriptions.contains(subscription.id) =>
+        ContextSupervisor(nPart,Map.empty,Map.empty,Map.empty,false)
+      case AddSubscription(subscription, replyTo) if subscriptions.contains(subscription.idGroup) =>
         replyTo ! KO("Entity already exists")
         Behaviors.same
       case AddSubscription(subscription, replyTo) =>
         replyTo ! OK
         val info = getInfoSub(subscription)
-        println(info)
-        ContextSupervisor(nPart,entities,entitiesRef,subscriptions.+(subscription.id->subscription))
-      case UpdateSubscription(subscription, replyTo) if !subscriptions.contains(subscription.id) =>
+        val attCon = info.tail.head
+        val url = info.tail.tail.head
+        val attTar = info.tail.tail.tail.head
+        if (!entitiesRef.get(info.head).isEmpty){
+          val ref = entitiesRef.get(info.head).head
+          ref ! InfoSubscriptionMsg(subscription.idConsumer,attCon,url,attTar,subscription.expires,subscription.throttling)
+        }else {
+          replyTo ! KO("Entity doesn't exist")
+        }
+        ContextSupervisor(nPart,entities,entitiesRef,subscriptions.+(subscription.idGroup->subscription),newValue)
+      case UpdateSubscription(subscription, replyTo) if !subscriptions.contains(subscription.idGroup) =>
         replyTo ! KO("Entity doesn't exist")
         Behaviors.same
-      case UpdateSubscription(subscription, replyTo) if subscriptions.contains(subscription.id) =>
+      case UpdateSubscription(subscription, replyTo) if subscriptions.contains(subscription.idGroup) =>
         replyTo ! OK
         val info = getInfoSub(subscription)
-        println(info)
-        ContextSupervisor(nPart,entities,entitiesRef,subscriptions.updated(subscription.id,subscription))
+        val attCon = info.tail.head
+        val url = info.tail.tail.head
+        val attTar = info.tail.tail.tail.head
+        if (!entitiesRef.get(info.head).isEmpty){
+          val ref = entitiesRef.get(info.head).head
+          ref ! InfoSubscriptionMsg(subscription.idConsumer,attCon,url,attTar,subscription.expires,subscription.throttling)
+        }else {
+          replyTo ! KO("Entity doesn't exist")
+        }
+        ContextSupervisor(nPart,entities,entitiesRef,subscriptions.updated(subscription.idGroup,subscription),newValue)
     }
   }
 
@@ -139,6 +166,7 @@ private def findAttr (attr: String, list: List[String]):String = list match {
     val conAttrs = attrsPattern.findFirstIn(subscription.subject) match {
       case Some(_) =>
         attrsPattern.findFirstIn(subscription.subject).head.split(":").toList.drop(1)
+          // [attr1,attr2] -> List(attr1,attr2)
           .map(_.drop(1).reverse.drop(1).reverse.split(",").toList)(0)
 //        println(attrsPattern.findFirstIn(subscription.subject))
       case None => println("attrs not found in subject")
@@ -152,6 +180,7 @@ private def findAttr (attr: String, list: List[String]):String = list match {
     val targetAttrs = attrsPattern.findFirstIn(subscription.notification) match {
       case Some(_) =>
         attrsPattern.findFirstIn(subscription.notification).head.split(":").toList.drop(1)
+          // [attr1,attr2] -> List(attr1,attr2)
           .map(_.drop(1).reverse.drop(1).reverse.split(",").toList)(0)
 //        println(attrsPattern.findFirstIn(subscription.notification))
       case None => println("attrs not found in notifications")

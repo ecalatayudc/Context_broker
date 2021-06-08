@@ -1,7 +1,8 @@
-package zzz.akka.contextbroker.server
+package zzz.akka.contextbroker
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, RootJsonFormat}
+import zzz.akka.contextbroker.server.ContextSupervisor
 
 trait Serializer extends SprayJsonSupport {
   // import the default encoders for primitive types (Int, String, Lists etc)
@@ -23,5 +24,5 @@ trait Serializer extends SprayJsonSupport {
   }
 
   implicit val jobFormat2 = jsonFormat3(ContextMsg)
-  implicit val jobFormat = jsonFormat6(ContextSubscription)
+  implicit val jobFormat = jsonFormat7(ContextSubscription)
 }

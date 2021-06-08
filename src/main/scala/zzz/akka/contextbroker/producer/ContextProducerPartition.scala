@@ -2,7 +2,9 @@ package zzz.akka.contextbroker.producer
 
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, Behavior}
+import zzz.akka.contextbroker.Aggregator
 import zzz.akka.contextbroker.producer.ContextProducerMain.{AggregatedQuotes, ValueAttribute, ValueRequestMsg, ValueResponseMsg}
+
 import scala.concurrent.duration.DurationInt
 
 

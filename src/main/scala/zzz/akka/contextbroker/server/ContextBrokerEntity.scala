@@ -6,7 +6,7 @@ import sun.security.util.Length
 import zzz.akka.contextbroker.producer.ContextProducerAttribute
 import zzz.akka.contextbroker.producer.ContextProducerMain.{ValueAttribute, ValueRequestMsg, ValueResponseMsg}
 import zzz.akka.contextbroker.producer.ContextProducerPartition.spawnAttributes
-import zzz.akka.contextbroker.server.ContextSupervisor.{ContextMsg, StreamMsg, patternSlash}
+import zzz.akka.contextbroker.server.ContextSupervisor.{ContextMsg, Info, InfoSubscriptionMsg, StreamMsg, patternSlash}
 
 import scala.concurrent.Future
 import scala.util.Random
@@ -17,7 +17,7 @@ object ContextBrokerEntity {
   case class spawnPartition() extends partitionMsg
   case class msgPartition(listVal: List[String]) extends partitionMsg
 
-  def apply(listAtt:List[String], nPart: Int,attributes: Map[String, ActorRef[partitionMsg]]= Map.empty): Behavior[StreamMsg] = Behaviors.setup{ ctx=>
+  def apply(listAtt:List[String], nPart: Int, nameEntity:String, attributes: Map[String, ActorRef[partitionMsg]]= Map.empty,consumers: Map[String, List[Any]]= Map.empty): Behavior[Info] = Behaviors.setup{ ctx=>
 
     val mapAtt = spawnAttributes(listAtt,ctx,nPart,attributes)
     (0 to listAtt.length-1).foreach{ n =>
@@ -32,10 +32,15 @@ object ContextBrokerEntity {
            ref ! msgPartition(msg)
         }
         Behaviors.same
+      case InfoSubscriptionMsg(idConsumer, attCon, url, attTarget, expires, throttling) =>
+        val listValuesConsumer = attCon::url::attTarget::expires::throttling::Nil
+        println(listValuesConsumer)
+        Behaviors.same
+        //ContextBrokerEntity(listAtt,nPart,nameEntity,attributes,consumers.+(idConsumer->listValuesConsumer))
     }
 
   }
-  private def spawnAttributes(listAtt:List[String], ctx: ActorContext[StreamMsg], nPart: Int, attributes: Map[String, ActorRef[partitionMsg]]):Map[String,ActorRef[partitionMsg]] = listAtt.length match {
+  private def spawnAttributes(listAtt:List[String], ctx: ActorContext[Info], nPart: Int, attributes: Map[String, ActorRef[partitionMsg]]):Map[String,ActorRef[partitionMsg]] = listAtt.length match {
     case _ if listAtt.length > 0 =>
       val next = listAtt.drop(1)
       val refAtt = ctx.spawn(ContextBrokerAttribute(listAtt(0),nPart,0,0), s"${listAtt.length}")

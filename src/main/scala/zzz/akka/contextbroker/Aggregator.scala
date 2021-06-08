@@ -1,17 +1,18 @@
-package zzz.akka.contextbroker.producer
+package zzz.akka.contextbroker
+
+import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.{ActorRef, Behavior}
 
 import scala.collection.immutable
 import scala.concurrent.duration.FiniteDuration
 import scala.reflect.ClassTag
 
-import akka.actor.typed.ActorRef
-import akka.actor.typed.Behavior
-import akka.actor.typed.scaladsl.Behaviors
-
 object Aggregator {
 
   sealed trait Command
+
   private case object ReceiveTimeout extends Command
+
   private case class WrappedReply[R](reply: R) extends Command
 
   def apply[Reply: ClassTag, Aggregate](

@@ -9,7 +9,7 @@ object ContextBrokerBucket {
   def apply(offset: Int): Behavior[offsetMsg] =
     Behaviors.receiveMessage {
       case offsetMsg(msg,_) =>
-        println(msg,offset)
+        //println(msg,offset)
         Behaviors.same
     }
 }
