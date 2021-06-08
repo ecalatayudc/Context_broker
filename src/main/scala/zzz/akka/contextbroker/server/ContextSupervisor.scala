@@ -39,28 +39,43 @@ object ContextSupervisor {
   final case class ClearEntity(replyTo: ActorRef[Response]) extends Command
   final case class AddSubscription(subscription: ContextSubscription, replyTo: ActorRef[Response]) extends Command
   final case class UpdateSubscription(subscription: ContextSubscription, replyTo: ActorRef[Response]) extends Command
-  final case class CheckNewValues(replyTo: ActorRef[Boolean]) extends Command
+  final case class CheckNewValues(idGroup: String,replyTo: ActorRef[Boolean]) extends Command
   // This behavior handles all possible incoming messages and keeps the state in the function parameter
-  def apply(nPart: Int,entities: Map[String, ContextMsg] = Map.empty, entitiesRef: Map[Any, ActorRef[Info]] = Map.empty, subscriptions: Map[String, ContextSubscription] = Map.empty,newValue:Boolean = false): Behavior[Command] = Behaviors.setup{ctx =>
+  def apply(nPart: Int, entities: Map[Any, ContextMsg] = Map.empty, entitiesRef: Map[Any, ActorRef[Info]] = Map.empty, subscriptions: Map[Any, ContextSubscription] = Map.empty, newMsg:Boolean = false,valuesAttCon:Map[String, Map[Any, Serializable]] = Map.empty): Behavior[Command] = Behaviors.setup{ ctx =>
     val num = new Random().between(0.0,100.0)
     Behaviors.receiveMessage {
-      case CheckNewValues(replyTo) =>
-        if (newValue){
-          replyTo ! true
+      case CheckNewValues(idGroup,replyTo) =>
+        if(newMsg){
+          if(valuesAttCon.contains(idGroup)){
+            val x = compareAtt(idGroup,entities,subscriptions)
+            if(valuesAttCon.get(idGroup).head ==x){
+              replyTo ! false
+              ContextSupervisor(nPart,entities,entitiesRef,subscriptions,false,valuesAttCon)
+            }else{
+              replyTo ! true
+              ContextSupervisor(nPart,entities,entitiesRef,subscriptions,false,valuesAttCon.updated(idGroup,x))
+            }
+
+          }else{
+            val x = compareAtt(idGroup,entities,subscriptions)
+            replyTo ! true
+            ContextSupervisor(nPart,entities,entitiesRef,subscriptions,false,valuesAttCon.+(idGroup->x))
+          }
         }else{
           replyTo ! false
+          ContextSupervisor(nPart,entities,entitiesRef,subscriptions,false,valuesAttCon)
         }
-        ContextSupervisor(nPart,entities,entitiesRef,subscriptions,false)
       case AddEntity(entity, replyTo) if entities.contains(entity.id) =>
         replyTo ! KO("Entity already exists")
         Behaviors.same
       case AddEntity(entity, replyTo) =>
         //      separacion de los atributos en una lista
         val mapValues = listTuple(entity)
-        val streamEntity = ctx.spawn(ContextBrokerEntity(mapValues.map(_(0)),nPart,entity.id),s"context-analysis-${num}")
+        println(mapValues)
+        val streamEntity = ctx.spawn(ContextBrokerEntity(mapValues.map(_.head),nPart,entity.id),s"context-analysis-${num}")
         streamEntity ! StreamMsg(mapValues)
         replyTo ! OK
-        ContextSupervisor(nPart,entities.+(entity.id -> entity),entitiesRef.+(entity.id->streamEntity),subscriptions,true)
+        ContextSupervisor(nPart,entities.+(entity.id -> entity),entitiesRef.+(entity.id->streamEntity),subscriptions,true,valuesAttCon)
       case UpdateEntity(entity, replyTo) if !entities.contains(entity.id) =>
         replyTo ! KO("Entity doesn't exist")
         Behaviors.same
@@ -69,7 +84,7 @@ object ContextSupervisor {
         val mapValues = listTuple(entity)
         val ref = entitiesRef.get(entity.id).head
         ref ! StreamMsg(mapValues)
-        ContextSupervisor(nPart,entities.updated(entity.id,entity),entitiesRef,subscriptions,true)
+        ContextSupervisor(nPart,entities.updated(entity.id,entity),entitiesRef,subscriptions,true,valuesAttCon)
       case GetEntityById(id, replyTo) =>
         patternAttrs.findFirstMatchIn(id) match {
           case Some(_) =>
@@ -91,50 +106,53 @@ object ContextSupervisor {
         }
       case ClearEntity(replyTo) =>
         replyTo ! OK
-        ContextSupervisor(nPart,Map.empty,Map.empty,Map.empty,false)
+        ContextSupervisor(nPart,Map.empty,Map.empty,Map.empty,false,Map.empty)
       case AddSubscription(subscription, replyTo) if subscriptions.contains(subscription.idGroup) =>
         replyTo ! KO("Entity already exists")
         Behaviors.same
       case AddSubscription(subscription, replyTo) =>
-        replyTo ! OK
         val info = getInfoSub(subscription)
+        val idEntity = info.head.head
         val attCon = info.tail.head
-        val url = info.tail.tail.head
+        val url = info.tail.tail.head.head
         val attTar = info.tail.tail.tail.head
-        if (!entitiesRef.get(info.head).isEmpty){
-          val ref = entitiesRef.get(info.head).head
+        if (!entitiesRef.get(idEntity).isEmpty){
+          replyTo ! OK
+          val ref = entitiesRef.get(idEntity).head
           ref ! InfoSubscriptionMsg(subscription.idConsumer,attCon,url,attTar,subscription.expires,subscription.throttling)
         }else {
+          println("pillado")
           replyTo ! KO("Entity doesn't exist")
         }
-        ContextSupervisor(nPart,entities,entitiesRef,subscriptions.+(subscription.idGroup->subscription),newValue)
+        ContextSupervisor(nPart,entities,entitiesRef,subscriptions.+(subscription.idGroup->subscription),newMsg,valuesAttCon)
       case UpdateSubscription(subscription, replyTo) if !subscriptions.contains(subscription.idGroup) =>
         replyTo ! KO("Entity doesn't exist")
         Behaviors.same
       case UpdateSubscription(subscription, replyTo) if subscriptions.contains(subscription.idGroup) =>
-        replyTo ! OK
         val info = getInfoSub(subscription)
+        val idEntity = info.head.head
         val attCon = info.tail.head
-        val url = info.tail.tail.head
+        val url = info.tail.tail.head.head
         val attTar = info.tail.tail.tail.head
-        if (!entitiesRef.get(info.head).isEmpty){
-          val ref = entitiesRef.get(info.head).head
+        if (!entitiesRef.get(idEntity).isEmpty){
+          replyTo ! OK
+          val ref = entitiesRef.get(idEntity).head
           ref ! InfoSubscriptionMsg(subscription.idConsumer,attCon,url,attTar,subscription.expires,subscription.throttling)
         }else {
           replyTo ! KO("Entity doesn't exist")
         }
-        ContextSupervisor(nPart,entities,entitiesRef,subscriptions.updated(subscription.idGroup,subscription),newValue)
+        ContextSupervisor(nPart,entities,entitiesRef,subscriptions.updated(subscription.idGroup,subscription),newMsg,valuesAttCon)
     }
   }
 
 private def findAttr (attr: String, list: List[String]):String = list match {
   case x::xs =>
     val valAttr = x.split(":",2).toList
-    if (valAttr(0) == attr) {
-      if (valAttr(1).last == ','){
-        valAttr(1).reverse.drop(1).reverse
+    if (valAttr.head == attr) {
+      if (valAttr.tail.head.last == ','){
+        valAttr.tail.head.reverse.drop(1).reverse
       }else{
-        valAttr(1)
+        valAttr.tail.head
       }
     }else
       findAttr(attr,xs)
@@ -148,8 +166,9 @@ private def findAttr (attr: String, list: List[String]):String = list match {
       //Separar los atributos en diferentes listas
       .map(_.split(":", 2).toList)
       //Eliminar las {} de los valores de los atributos y convertirlo en una lista de valores de atributo
-      .map(x => x(0)::x(1).drop(1).reverse.drop(1).reverse.split(",").toList)
-      //convertir la lista de valores del atributo en una tupla (attr,val, type, metadata)
+      .map(x => x.head::x.tail.head.drop(1).reverse.drop(1).reverse.split(",").toList)
+
+  //convertir la lista de valores del atributo en una tupla (attr,val, type, metadata)
 //      .map(_ match {
 //        case List(a,List(b, c, d)) => (a, b, c, d)
 //      })
@@ -157,11 +176,11 @@ private def findAttr (attr: String, list: List[String]):String = list match {
     val idPattern = "id:[a-zA-Z0-9]*".r
     val attrsPattern = """attrs:\[[a-zA-Z0-9]*[,[a-zA-Z0-9]*]*\]""".r
     val urlPattern = "url:[a-zA-Z]*://[a-zA-Z]*:[0-9]*[/[a-zA-Z]*]*".r
-    val id = idPattern.findFirstIn(subscription.subject) match {
+    val idEntity = idPattern.findFirstIn(subscription.subject) match {
       case Some(_) =>
-        idPattern.findFirstIn(subscription.subject).head.split(":").toList.drop(1)(0)
+        idPattern.findFirstIn(subscription.subject).head.split(":").toList.drop(1).head::Nil
 //        println(idPattern.findFirstIn(subscription.subject))
-      case None => println("id not found")
+      case None => Nil
     }
     val conAttrs = attrsPattern.findFirstIn(subscription.subject) match {
       case Some(_) =>
@@ -169,22 +188,35 @@ private def findAttr (attr: String, list: List[String]):String = list match {
           // [attr1,attr2] -> List(attr1,attr2)
           .map(_.drop(1).reverse.drop(1).reverse.split(",").toList)(0)
 //        println(attrsPattern.findFirstIn(subscription.subject))
-      case None => println("attrs not found in subject")
+      case None => Nil
     }
     val url = urlPattern.findFirstMatchIn(subscription.notification) match {
       case Some(_) =>
-        urlPattern.findFirstIn(subscription.notification).head.split(":",2).toList.drop(1)(0)
+        urlPattern.findFirstIn(subscription.notification).head.split(":",2).toList.drop(1).head::Nil
 //        println(urlPattern.findFirstIn(subscription.notification))
-      case None => println("url not found")
+      case None => Nil
     }
     val targetAttrs = attrsPattern.findFirstIn(subscription.notification) match {
       case Some(_) =>
         attrsPattern.findFirstIn(subscription.notification).head.split(":").toList.drop(1)
           // [attr1,attr2] -> List(attr1,attr2)
-          .map(_.drop(1).reverse.drop(1).reverse.split(",").toList)(0)
+          .map(_.drop(1).reverse.drop(1).reverse.split(",").toList).head
 //        println(attrsPattern.findFirstIn(subscription.notification))
-      case None => println("attrs not found in notifications")
+      case None => Nil
     }
-    id::conAttrs::url::targetAttrs::Nil
+    idEntity::conAttrs::url::targetAttrs::Nil
+  }
+  private def compareAtt(idGroup:Any, entities: Map[Any, ContextMsg], subscriptions: Map[Any, ContextSubscription])= {
+    val mapValues: Map[Any,List[String]] = Map.empty
+    val subscription = subscriptions.get(idGroup).head
+    val info = getInfoSub(subscription)
+    val idEntity = info.head.head
+    val attCon = info.tail.head
+    val msgEntity = entities.get(idEntity).head
+    val attValues = listTuple(msgEntity)
+    val mapAttValues = attValues.map(x=>mapValues.+(x.head->x.tail)).reduce(_++_)
+    val x = mapAttValues.contains(attCon)
+    val values = attCon.map(x=>mapValues.+(x->mapAttValues.get(x).head.head.split(":").toList.tail.head)).reduce(_++_)
+    values
   }
 }

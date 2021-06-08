@@ -101,14 +101,14 @@ class Routes(buildEntitiesRepository: ActorRef[ContextSupervisor.Command])(impli
               }
             )
           },
-          (get & path("events")) {
+          (get & path("events"/Segment)) { idGroup=>
             //eventos
             complete{
               Source
                 .tick(1.seconds, 2.seconds, NotUsed)
                 .mapAsync(1) { _ =>
                     implicit val timeout: Timeout = 3.seconds
-                    val response: Future[Boolean] = buildEntitiesRepository.ask(ContextSupervisor.CheckNewValues)
+                    val response: Future[Boolean] = buildEntitiesRepository.ask(ContextSupervisor.CheckNewValues(idGroup,_))
                     response.collect{
                       case true => "new value"
                       case false => "no value"
