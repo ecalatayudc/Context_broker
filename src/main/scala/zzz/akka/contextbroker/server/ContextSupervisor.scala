@@ -1,9 +1,15 @@
 package zzz.akka.contextbroker.server
 
+import akka.NotUsed
 import akka.actor.TypedActor.context
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, Behavior}
+import akka.http.scaladsl.model.sse.ServerSentEvent
+import akka.stream.scaladsl.Source
+import akka.util.Timeout
 
+import scala.concurrent.Future
+import scala.concurrent.duration.DurationInt
 import scala.util.Random
 
 
@@ -39,31 +45,56 @@ object ContextSupervisor {
   final case class ClearEntity(replyTo: ActorRef[Response]) extends Command
   final case class AddSubscription(subscription: ContextSubscription, replyTo: ActorRef[Response]) extends Command
   final case class UpdateSubscription(subscription: ContextSubscription, replyTo: ActorRef[Response]) extends Command
-  final case class CheckNewValues(idGroup: String,replyTo: ActorRef[Boolean]) extends Command
+  final case class CheckNewValues(idGroup: String,idConsumer:String, replyTo: ActorRef[Boolean]) extends Command
+  final case class GetSource(idGroup:String,idConsumer:String,replyTo:ActorRef[Response]) extends Command
   // This behavior handles all possible incoming messages and keeps the state in the function parameter
-  def apply(nPart: Int, entities: Map[Any, ContextMsg] = Map.empty, entitiesRef: Map[Any, ActorRef[Info]] = Map.empty, subscriptions: Map[Any, ContextSubscription] = Map.empty, newMsg:Boolean = false,valuesAttCon:Map[String, Map[Any, Serializable]] = Map.empty): Behavior[Command] = Behaviors.setup{ ctx =>
+  def apply(nPart: Int, entities: Map[Any, ContextMsg] = Map.empty, entitiesRef: Map[Any, ActorRef[Info]] = Map.empty, subscriptions: Map[Any,Map[String, ContextSubscription]] = Map.empty, newMsg:Boolean = false, valuesAttConsumer:Map[String,Map[String, (Map[Any, Serializable],List[String])]] = Map.empty): Behavior[Command] = Behaviors.setup{ ctx =>
     val num = new Random().between(0.0,100.0)
     Behaviors.receiveMessage {
-      case CheckNewValues(idGroup,replyTo) =>
+      //en este mensaje se maneja los eventos de nuevos mensajes
+      case GetSource(idGroup,idConsumer,replyTo) =>
+
+        Behaviors.same
+      case CheckNewValues(idGroup,idConsumer,replyTo) =>
+        //si hay un nuevo mensaje
         if(newMsg){
-          if(valuesAttCon.contains(idGroup)){
-            val x = compareAtt(idGroup,entities,subscriptions)
-            if(valuesAttCon.get(idGroup).head ==x){
-              replyTo ! false
-              ContextSupervisor(nPart,entities,entitiesRef,subscriptions,false,valuesAttCon)
+
+          //Sacamos los nuevos valores de attCon del nuevo mensaje -> (Map(Att1->value,list(attTarget1,attTrget2))
+          val newValueAtt = compareAtt(idGroup,idConsumer,entities,subscriptions)
+          //Comprobamos si exite un idGroup en map valuesAttConsumer
+          if(valuesAttConsumer.contains(idGroup)){
+            //sacamos el map del consumer
+            val mapIdConsumer = valuesAttConsumer.get(idGroup).head
+            //comprobamos que exista un consumer en el map
+            if (mapIdConsumer.contains(idConsumer)){
+              //sacamos los attCondicionantes
+              val attCon = mapIdConsumer.get(idConsumer).head._1
+              //comprobamos si es igual al anterior
+              if(attCon ==newValueAtt._1){
+                replyTo ! false
+                //si es igual dejamos igual el map valuesAttConsumer
+                Behaviors.same
+              }else{
+                replyTo ! true
+                getNumActors(valuesAttConsumer)
+                //sino actualizamos el map mapIdConsumer
+                ContextSupervisor(nPart,entities,entitiesRef,subscriptions,false,valuesAttConsumer.updated(idGroup,mapIdConsumer.updated(idConsumer,newValueAtt)))
+              }
+            //si el consumer no esta en el map se añade un nuevo consumer en el map mapIdConsumer
             }else{
               replyTo ! true
-              ContextSupervisor(nPart,entities,entitiesRef,subscriptions,false,valuesAttCon.updated(idGroup,x))
+              ContextSupervisor(nPart,entities,entitiesRef,subscriptions,false,valuesAttConsumer.updated(idGroup,mapIdConsumer.+(idConsumer->newValueAtt)))
             }
-
+          //si no hay un group ni consumer se añaden al map valuesAttConsumer
           }else{
-            val x = compareAtt(idGroup,entities,subscriptions)
+            val mapIdConsumer = Map(idConsumer->newValueAtt)
             replyTo ! true
-            ContextSupervisor(nPart,entities,entitiesRef,subscriptions,false,valuesAttCon.+(idGroup->x))
+            ContextSupervisor(nPart,entities,entitiesRef,subscriptions,false,valuesAttConsumer.+(idGroup->mapIdConsumer))
           }
+        // si no hay un nuevo mensaje se mantiene el map valuesAttConsumer
         }else{
           replyTo ! false
-          ContextSupervisor(nPart,entities,entitiesRef,subscriptions,false,valuesAttCon)
+          Behaviors.same
         }
       case AddEntity(entity, replyTo) if entities.contains(entity.id) =>
         replyTo ! KO("Entity already exists")
@@ -75,7 +106,7 @@ object ContextSupervisor {
         val streamEntity = ctx.spawn(ContextBrokerEntity(mapValues.map(_.head),nPart,entity.id),s"context-analysis-${num}")
         streamEntity ! StreamMsg(mapValues)
         replyTo ! OK
-        ContextSupervisor(nPart,entities.+(entity.id -> entity),entitiesRef.+(entity.id->streamEntity),subscriptions,true,valuesAttCon)
+        ContextSupervisor(nPart,entities.+(entity.id -> entity),entitiesRef.+(entity.id->streamEntity),subscriptions,true,valuesAttConsumer)
       case UpdateEntity(entity, replyTo) if !entities.contains(entity.id) =>
         replyTo ! KO("Entity doesn't exist")
         Behaviors.same
@@ -84,7 +115,7 @@ object ContextSupervisor {
         val mapValues = listTuple(entity)
         val ref = entitiesRef.get(entity.id).head
         ref ! StreamMsg(mapValues)
-        ContextSupervisor(nPart,entities.updated(entity.id,entity),entitiesRef,subscriptions,true,valuesAttCon)
+        ContextSupervisor(nPart,entities.updated(entity.id,entity),entitiesRef,subscriptions,true,valuesAttConsumer)
       case GetEntityById(id, replyTo) =>
         patternAttrs.findFirstMatchIn(id) match {
           case Some(_) =>
@@ -108,8 +139,14 @@ object ContextSupervisor {
         replyTo ! OK
         ContextSupervisor(nPart,Map.empty,Map.empty,Map.empty,false,Map.empty)
       case AddSubscription(subscription, replyTo) if subscriptions.contains(subscription.idGroup) =>
-        replyTo ! KO("Entity already exists")
-        Behaviors.same
+        val mapIdConsumer = subscriptions.get(subscription.idGroup).head
+        if(mapIdConsumer.contains(subscription.idConsumer)){
+          replyTo ! KO("Consumer already exists")
+          Behaviors.same
+        }else{
+          replyTo ! OK
+          ContextSupervisor(nPart,entities,entitiesRef,subscriptions.updated(subscription.idGroup,mapIdConsumer.+(subscription.idConsumer->subscription)),newMsg,valuesAttConsumer)
+        }
       case AddSubscription(subscription, replyTo) =>
         val info = getInfoSub(subscription)
         val idEntity = info.head.head
@@ -120,28 +157,36 @@ object ContextSupervisor {
           replyTo ! OK
           val ref = entitiesRef.get(idEntity).head
           ref ! InfoSubscriptionMsg(subscription.idConsumer,attCon,url,attTar,subscription.expires,subscription.throttling)
+          val mapIdConsumer = Map(subscription.idConsumer->subscription)
+          ContextSupervisor(nPart,entities,entitiesRef,subscriptions.+(subscription.idGroup->mapIdConsumer),newMsg,valuesAttConsumer)
         }else {
-          println("pillado")
           replyTo ! KO("Entity doesn't exist")
+          Behaviors.same
         }
-        ContextSupervisor(nPart,entities,entitiesRef,subscriptions.+(subscription.idGroup->subscription),newMsg,valuesAttCon)
       case UpdateSubscription(subscription, replyTo) if !subscriptions.contains(subscription.idGroup) =>
-        replyTo ! KO("Entity doesn't exist")
+        replyTo ! KO("Group doesn't exist")
         Behaviors.same
-      case UpdateSubscription(subscription, replyTo) if subscriptions.contains(subscription.idGroup) =>
+      case UpdateSubscription(subscription, replyTo) =>
+        val mapIdConsumer = subscriptions.get(subscription.idGroup).head
         val info = getInfoSub(subscription)
         val idEntity = info.head.head
         val attCon = info.tail.head
         val url = info.tail.tail.head.head
         val attTar = info.tail.tail.tail.head
         if (!entitiesRef.get(idEntity).isEmpty){
-          replyTo ! OK
           val ref = entitiesRef.get(idEntity).head
           ref ! InfoSubscriptionMsg(subscription.idConsumer,attCon,url,attTar,subscription.expires,subscription.throttling)
+          if (mapIdConsumer.contains(subscription.idConsumer)){
+            replyTo ! OK
+            ContextSupervisor(nPart,entities,entitiesRef,subscriptions.updated(subscription.idGroup,mapIdConsumer.updated(subscription.idConsumer,subscription)),newMsg,valuesAttConsumer)
+          }else{
+            replyTo ! KO("Consumer doesn't exist")
+            Behaviors.same
+          }
         }else {
           replyTo ! KO("Entity doesn't exist")
+          Behaviors.same
         }
-        ContextSupervisor(nPart,entities,entitiesRef,subscriptions.updated(subscription.idGroup,subscription),newMsg,valuesAttCon)
     }
   }
 
@@ -167,11 +212,6 @@ private def findAttr (attr: String, list: List[String]):String = list match {
       .map(_.split(":", 2).toList)
       //Eliminar las {} de los valores de los atributos y convertirlo en una lista de valores de atributo
       .map(x => x.head::x.tail.head.drop(1).reverse.drop(1).reverse.split(",").toList)
-
-  //convertir la lista de valores del atributo en una tupla (attr,val, type, metadata)
-//      .map(_ match {
-//        case List(a,List(b, c, d)) => (a, b, c, d)
-//      })
   private def getInfoSub(subscription: ContextSubscription) = {
     val idPattern = "id:[a-zA-Z0-9]*".r
     val attrsPattern = """attrs:\[[a-zA-Z0-9]*[,[a-zA-Z0-9]*]*\]""".r
@@ -206,17 +246,24 @@ private def findAttr (attr: String, list: List[String]):String = list match {
     }
     idEntity::conAttrs::url::targetAttrs::Nil
   }
-  private def compareAtt(idGroup:Any, entities: Map[Any, ContextMsg], subscriptions: Map[Any, ContextSubscription])= {
+  private def compareAtt(idGroup:Any, idConsumer:String, entities: Map[Any, ContextMsg], subscriptions: Map[Any,Map[String, ContextSubscription]])= {
     val mapValues: Map[Any,List[String]] = Map.empty
     val subscription = subscriptions.get(idGroup).head
-    val info = getInfoSub(subscription)
+    val info = getInfoSub(subscription.get(idConsumer).head)
     val idEntity = info.head.head
     val attCon = info.tail.head
+    val attTarget = info.tail.tail.tail.head
     val msgEntity = entities.get(idEntity).head
     val attValues = listTuple(msgEntity)
     val mapAttValues = attValues.map(x=>mapValues.+(x.head->x.tail)).reduce(_++_)
-    val x = mapAttValues.contains(attCon)
     val values = attCon.map(x=>mapValues.+(x->mapAttValues.get(x).head.head.split(":").toList.tail.head)).reduce(_++_)
-    values
+    (values,attTarget)
+  }
+  private def getNumActors (valuesAttConsumer:Map[String,Map[String, (Map[Any, Serializable],List[String])]]) ={
+    val keysGroup = valuesAttConsumer.keys.toList
+    val mapConsumer = keysGroup.map(x => valuesAttConsumer.get(x).head).head
+    val keysConsumer = mapConsumer.keys.toList
+    val attTarget = keysConsumer.map(x => mapConsumer.get(x).head._2).reduce(_++_).map(x=>(x,1)).groupBy(_._1).map(x=>(x._1,x._2.size))
+    attTarget
   }
 }

@@ -2,39 +2,33 @@ package zzz.akka.contextbroker.consumer
 
 import akka.NotUsed
 import akka.actor.ActorSystem
-
-import akka.actor.typed.scaladsl.Behaviors
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.client.RequestBuilding.Get
+import akka.http.scaladsl.client.RequestBuilding.{Get, Post}
+import akka.http.scaladsl.model.sse.ServerSentEvent
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse}
 import akka.http.scaladsl.unmarshalling.Unmarshal
-import zzz.akka.contextbroker.server.ContextSupervisor.ContextMsg
-import akka.http.scaladsl.client.RequestBuilding.Post
-import akka.http.scaladsl.client.RequestBuilding.Put
-import akka.http.scaladsl.model.sse.ServerSentEvent
+import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
 import zzz.akka.contextbroker.Serializer
-import akka.stream.ActorMaterializer
+import zzz.akka.contextbroker.server.ContextSupervisor.ContextMsg
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 import scala.util.{Failure, Success}
-import akka.http.scaladsl.unmarshalling.sse.EventStreamUnmarshalling._
 
-object ContextConsumer extends Serializer {
+object ContextConsumer2 extends Serializer {
 
 
   def main(args: Array[String]): Unit = {
 
-    val sub = "{entities:[{id:Room1,type:Room}], condition:{attrs:[temperature1]}}"
+    val sub = "{entities:[{id:Room1,type:Room}], condition:{attrs:[pressure2]}}"
     val not = "{http:{url:http://localhost:1028/accumulate}, attrs:[temperature1,temperature2]}"
-    sendSubscription("Group1","consumer1","sub to Room1",sub,not,"2040-01-01T14:00:00.00Z","5")
+    sendSubscription("Group1","consumer2","sub to Room1",sub,not,"2040-01-01T14:00:00.00Z","5")
   }
   private def sendSubscription( idGroup: String, idConsumer: String, desc: String,sub: String, not: String, exp: String, thr: String):Unit = {
     implicit val system= ActorSystem()
     implicit val mat    = ActorMaterializer
     implicit val dispatcher = system.dispatcher
     import akka.http.scaladsl.unmarshalling.sse.EventStreamUnmarshalling._
-    import system.dispatcher
 
     // needed for the future flatMap/onComplete in the end
     val json_response = s"""{ "idGroup": "$idGroup","idConsumer": "$idConsumer", "description": "$desc", "subject": "$sub", "notification": "$not", "expires": "$exp", "throttling": "$thr" }"""
