@@ -16,6 +16,7 @@ object ContextBrokerEntity {
   trait partitionMsg
   case class spawnPartition() extends partitionMsg
   case class msgPartition(listVal: List[String]) extends partitionMsg
+  case class attTargetConsumers(idGroup:String,idConsumer:String) extends partitionMsg
 
   def apply(listAtt:List[String], nPart: Int, nameEntity:String, attributes: Map[String, ActorRef[partitionMsg]]= Map.empty,consumers: Map[String, List[Any]]= Map.empty): Behavior[Info] = Behaviors.setup{ ctx=>
 
@@ -27,14 +28,16 @@ object ContextBrokerEntity {
     Behaviors.receiveMessage {
       case StreamMsg(mapValues) =>
         (0 to listAtt.length-1).foreach{ n =>
-           val ref = mapAtt.get(mapValues(n)(0)).head
+           val ref = mapAtt.get(mapValues(n).head).head
            val msg = mapValues(n).drop(1)
            ref ! msgPartition(msg)
         }
         Behaviors.same
-      case InfoSubscriptionMsg(idConsumer, attCon, url, attTarget, expires, throttling) =>
-        val listValuesConsumer = attCon::url::attTarget::expires::throttling::Nil
-        println(listValuesConsumer)
+      case InfoSubscriptionMsg(idGroup,idConsumer, attCon, url, attTarget, expires, throttling) =>
+        (0 to attTarget.length-1).foreach{n=>
+          val ref = mapAtt.get(attTarget(n)).head
+          ref ! attTargetConsumers(idGroup,idConsumer)
+        }
         Behaviors.same
         //ContextBrokerEntity(listAtt,nPart,nameEntity,attributes,consumers.+(idConsumer->listValuesConsumer))
     }

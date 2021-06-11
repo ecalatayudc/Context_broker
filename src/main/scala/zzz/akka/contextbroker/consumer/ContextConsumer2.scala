@@ -3,7 +3,7 @@ package zzz.akka.contextbroker.consumer
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.client.RequestBuilding.{Get, Post}
+import akka.http.scaladsl.client.RequestBuilding.{Get, Post, Put}
 import akka.http.scaladsl.model.sse.ServerSentEvent
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse}
 import akka.http.scaladsl.unmarshalling.Unmarshal

@@ -22,7 +22,7 @@ object ContextSupervisor {
   final case class SayHello(name: String)
   trait Info
   final case class StreamMsg (values: List[List[String]]) extends Info
-  final case class InfoSubscriptionMsg (idConsumer: String, attCon: Any, url: Any, attTarget: Any, expires: String, throttling: String) extends Info
+  final case class InfoSubscriptionMsg (idGroup:String,idConsumer: String, attCon: Any, url: Any, attTarget: List[String], expires: String, throttling: String) extends Info
   // Definition of the a build entity and its possible status values
   sealed trait Status
   object Successful extends Status
@@ -143,9 +143,22 @@ object ContextSupervisor {
         if(mapIdConsumer.contains(subscription.idConsumer)){
           replyTo ! KO("Consumer already exists")
           Behaviors.same
-        }else{
-          replyTo ! OK
-          ContextSupervisor(nPart,entities,entitiesRef,subscriptions.updated(subscription.idGroup,mapIdConsumer.+(subscription.idConsumer->subscription)),newMsg,valuesAttConsumer)
+        }else {
+          val info = getInfoSub(subscription)
+          val idEntity = info.head.head
+          val attCon = info.tail.head
+          val url = info.tail.tail.head.head
+          val attTar = info.tail.tail.tail.head
+          if (!entitiesRef.get(idEntity).isEmpty) {
+            replyTo ! OK
+            val ref = entitiesRef.get(idEntity).head
+            ref ! InfoSubscriptionMsg(subscription.idGroup, subscription.idConsumer, attCon, url, attTar, subscription.expires, subscription.throttling)
+            val mapIdConsumer = Map(subscription.idConsumer -> subscription)
+            ContextSupervisor(nPart, entities, entitiesRef, subscriptions.updated(subscription.idGroup, mapIdConsumer.+(subscription.idConsumer -> subscription)), newMsg, valuesAttConsumer)
+          } else {
+            replyTo ! KO("Entity doesn't exist")
+            Behaviors.same
+          }
         }
       case AddSubscription(subscription, replyTo) =>
         val info = getInfoSub(subscription)
@@ -156,7 +169,7 @@ object ContextSupervisor {
         if (!entitiesRef.get(idEntity).isEmpty){
           replyTo ! OK
           val ref = entitiesRef.get(idEntity).head
-          ref ! InfoSubscriptionMsg(subscription.idConsumer,attCon,url,attTar,subscription.expires,subscription.throttling)
+          ref ! InfoSubscriptionMsg(subscription.idGroup,subscription.idConsumer,attCon,url,attTar,subscription.expires,subscription.throttling)
           val mapIdConsumer = Map(subscription.idConsumer->subscription)
           ContextSupervisor(nPart,entities,entitiesRef,subscriptions.+(subscription.idGroup->mapIdConsumer),newMsg,valuesAttConsumer)
         }else {
@@ -175,7 +188,7 @@ object ContextSupervisor {
         val attTar = info.tail.tail.tail.head
         if (!entitiesRef.get(idEntity).isEmpty){
           val ref = entitiesRef.get(idEntity).head
-          ref ! InfoSubscriptionMsg(subscription.idConsumer,attCon,url,attTar,subscription.expires,subscription.throttling)
+          ref ! InfoSubscriptionMsg(subscription.idGroup,subscription.idConsumer,attCon,url,attTar,subscription.expires,subscription.throttling)
           if (mapIdConsumer.contains(subscription.idConsumer)){
             replyTo ! OK
             ContextSupervisor(nPart,entities,entitiesRef,subscriptions.updated(subscription.idGroup,mapIdConsumer.updated(subscription.idConsumer,subscription)),newMsg,valuesAttConsumer)
@@ -260,10 +273,14 @@ private def findAttr (attr: String, list: List[String]):String = list match {
     (values,attTarget)
   }
   private def getNumActors (valuesAttConsumer:Map[String,Map[String, (Map[Any, Serializable],List[String])]]) ={
-    val keysGroup = valuesAttConsumer.keys.toList
-    val mapConsumer = keysGroup.map(x => valuesAttConsumer.get(x).head).head
-    val keysConsumer = mapConsumer.keys.toList
-    val attTarget = keysConsumer.map(x => mapConsumer.get(x).head._2).reduce(_++_).map(x=>(x,1)).groupBy(_._1).map(x=>(x._1,x._2.size))
-    attTarget
+    if (!valuesAttConsumer.isEmpty){
+      val keysGroup = valuesAttConsumer.keys.toList
+      val mapConsumer = keysGroup.map(x => valuesAttConsumer.get(x).head).head
+      val keysConsumer = mapConsumer.keys.toList
+      val attTarget = keysConsumer.map(x => mapConsumer.get(x).head._2).reduce(_++_).map(x=>(x,1)).groupBy(_._1).map(x=>(x._1,x._2.size))
+      attTarget
+    }else{
+      Map(""->0)
+    }
   }
 }

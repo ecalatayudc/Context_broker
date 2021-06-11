@@ -32,9 +32,7 @@ object ContextProducerMain {
         //eliminacion de la ultima coma
         val textComma = text.reverse.drop(1).reverse
         ctx.log.info("Got message {}", textComma)
-
         sendValue(textComma,ent,entType)
-
         Behaviors.same
       case _ => Behaviors.same
     }
@@ -49,8 +47,8 @@ object ContextProducerMain {
         // needed for the future flatMap/onComplete in the end
         implicit val executionContext = system.executionContext
         val json_response = s"""{ "id": "$ent", "entityType": "$entType", "attrs": "$value"}"""
-//        val responseFuture: Future[HttpResponse] = Http().singleRequest(Post("http://127.0.0.1:5804/entities", HttpEntity(ContentTypes.`application/json`, json_response)))
-        val responseFuture: Future[HttpResponse] = Http().singleRequest(Put("http://127.0.0.1:5804/entities", HttpEntity(ContentTypes.`application/json`, json_response)))
+        val responseFuture: Future[HttpResponse] = Http().singleRequest(Post("http://127.0.0.1:5804/entities", HttpEntity(ContentTypes.`application/json`, json_response)))
+//        val responseFuture: Future[HttpResponse] = Http().singleRequest(Put("http://127.0.0.1:5804/entities", HttpEntity(ContentTypes.`application/json`, json_response)))
 
         responseFuture
           .onComplete {

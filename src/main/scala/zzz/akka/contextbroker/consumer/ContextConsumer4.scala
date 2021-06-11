@@ -3,7 +3,7 @@ package zzz.akka.contextbroker.consumer
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.client.RequestBuilding.{Get, Post, Put}
+import akka.http.scaladsl.client.RequestBuilding.{Get, Post}
 import akka.http.scaladsl.model.sse.ServerSentEvent
 import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse}
 import akka.http.scaladsl.unmarshalling.Unmarshal
@@ -15,14 +15,14 @@ import zzz.akka.contextbroker.server.ContextSupervisor.ContextMsg
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
-object ContextConsumer3 extends Serializer {
+object ContextConsumer4 extends Serializer {
 
 
   def main(args: Array[String]): Unit = {
 
     val sub = "{entities:[{id:Room1,type:Room}], condition:{attrs:[pressure2]}}"
     val not = "{http:{url:http://localhost:1028/accumulate}, attrs:[temperature1,temperature2]}"
-    sendSubscription("Group1","consumer3","sub to Room1",sub,not,"2040-01-01T14:00:00.00Z","5")
+    sendSubscription("Group1","consumer4","sub to Room1",sub,not,"2040-01-01T14:00:00.00Z","5")
   }
   private def sendSubscription( idGroup: String, idConsumer: String, desc: String,sub: String, not: String, exp: String, thr: String):Unit = {
     implicit val system= ActorSystem()
@@ -32,8 +32,8 @@ object ContextConsumer3 extends Serializer {
 
     // needed for the future flatMap/onComplete in the end
     val json_response = s"""{ "idGroup": "$idGroup","idConsumer": "$idConsumer", "description": "$desc", "subject": "$sub", "notification": "$not", "expires": "$exp", "throttling": "$thr" }"""
-//    val responseFuture: Future[HttpResponse] = Http().singleRequest(Post("http://127.0.0.1:5804/subscriptions", HttpEntity(ContentTypes.`application/json`, json_response)))
-    val responseFuture: Future[HttpResponse] = Http().singleRequest(Put("http://127.0.0.1:5804/subscriptions", HttpEntity(ContentTypes.`application/json`, json_response)))
+    val responseFuture: Future[HttpResponse] = Http().singleRequest(Post("http://127.0.0.1:5804/subscriptions", HttpEntity(ContentTypes.`application/json`, json_response)))
+//    val responseFuture: Future[HttpResponse] = Http().singleRequest(Put("http://127.0.0.1:5804/subscriptions", HttpEntity(ContentTypes.`application/json`, json_response)))
     responseFuture
       .onComplete {
         case Success(res) =>
